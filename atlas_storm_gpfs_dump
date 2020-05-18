@@ -4,7 +4,7 @@
 ##
 ##  Author:   David Rebatto <David.Rebatto@mi.infn.it>
 ##  Revision history:
-##    20-Mar-2004: Original release
+##    18-Mar-2020: Original release
 
 # Enable 'pseudo-strict' mode
 set -euo pipefail
