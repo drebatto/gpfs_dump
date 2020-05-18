@@ -1,0 +1,114 @@
+#!/bin/bash
+##
+##  GPFS dump generator for Rucio consistency check
+##
+##  Author:   David Rebatto <David.Rebatto@mi.infn.it>
+##  Revision history:
+##    20-Mar-2004: Original release
+
+# Enable 'pseudo-strict' mode
+set -euo pipefail
+declare -A toksArray
+
+
+#####################################################################
+#####################################################################
+##
+## Configuration section
+##
+#####################################################################
+#####################################################################
+# Base path of the space tokens
+FILESYSTEM="/gpfs/storage_3/atlas"
+# Map tokens to their path (relative to $FILESYSTEM)
+toksArray[atlasdatadisk]=atlasdatadisk
+toksArray[atlasscratchdisk]=atlasscratchdisk
+
+# Select the nodes partecipating in 'mmapplypolicy' command
+# (see mmapplipolicy man page for synyax)
+NODES=nsdnodes
+# A shared directory, must be accessible to all the nodes
+SHAREDTMP="/gpfs/storage_4/shared/tmp"
+# Directory for local tmp files. N.B. despite local, it must exist
+# on all nodes, so don't use mktemp
+LOCALTMP=/tmp
+# Set these for the chown command if you want the dump to belong 
+# to user 'storm'
+STORMUSER=100
+STORMGROUP=101
+#####################################################################
+#####################################################################
+######### You should not need to change anything below here #########
+
+
+function process_list() {
+  # Invoked by mmapplypolicy with arguments
+  # LIST <list file>
+  while read; do
+    for token in "${toksArray[@]}"; do
+      if [[ "$REPLY" =~ "$token" ]]; then
+        FILE=${REPLY#*-- }
+        TMPFILE=${SHAREDTMP}/${token}/${DUMP}.tmp
+        DESTLINE=${FILE#*/${token}/}
+        DESTLINE=${DESTLINE#rucio/}
+        echo "${DESTLINE}" >> ${TMPFILE}.$(basename $1)
+        break
+      fi 
+    done
+  done < $1
+}
+
+function apply_policy() {
+  # Clear possible leftovers
+  for token in "${toksArray[@]}"; do
+    mkdir -p "${SHAREDTMP}/${token}"
+    TMPFILE=${SHAREDTMP}/${token}/${DUMP}.tmp
+    rm -f ${TMPFILE}.* &>/dev/null
+  done
+
+  # Create the policy rule (scan files and invoke this script on the result)
+  TMPRULE=$(mktemp -p "${LOCALTMP}" "scan_rule-XXXX")
+  cat > $TMPRULE << EOF
+RULE 'print_files' 
+  EXTERNAL LIST 'LIST ALL FILES'
+    EXEC '${SHAREDTMP}/$(basename "$0")'
+RULE 'list all files' 
+  LIST 'LIST ALL FILES'
+EOF
+
+  # Start inode scan
+  mmapplypolicy "$1" -P "$TMPRULE" -L 0 -g "$SHAREDTMP" -N "$NODES" -B 1000 -s "$LOCALTMP"
+  rm "$TMPRULE"
+
+  # Move tmp files to final destination
+  for token in "${toksArray[@]}"; do
+    TMPFILE=${SHAREDTMP}/${token}/${DUMP}.tmp
+    DESTFILE=${FILESYSTEM}/${token}/dumps/${DUMP}.test
+    if ls ${TMPFILE}.* &> /dev/null; then
+      cat ${TMPFILE}.* > "${DESTFILE}"
+      if [ -n "$STORMUSER" -a -n "$STORMGROUP" ]; then
+        chown ${STORMUSER}.${STORMGROUP} "${DESTFILE}"
+      fi
+      rm ${TMPFILE}.*
+    fi
+  done
+}
+
+###
+### main
+###
+
+DUMP=dump_$(date +%Y%m%d)
+
+case ${1:-} in
+  # when invoked by mmapplypolicy:
+  TEST) test -r $2 ;;
+  LIST) process_list $2 ;;
+
+  # when invoked from the shell:
+  *) 
+    # make the script available on all nodes
+    cp -p "$0" "$SHAREDTMP" 
+    apply_policy ${1:-${FILESYSTEM}}
+    ;;
+esac
