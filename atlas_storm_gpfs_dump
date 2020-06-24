@@ -25,12 +25,12 @@ toksArray[atlasdatadisk]=atlasdatadisk
 toksArray[atlasscratchdisk]=atlasscratchdisk
 
 # Select the nodes partecipating in 'mmapplypolicy' command
-# (see mmapplipolicy man page for synyax)
+# (see mmapplypolicy man page for synyax)
 NODES=nsdnodes
 # A shared directory, must be accessible to all the nodes
 SHAREDTMP="/gpfs/storage_4/shared/tmp"
 # Directory for local tmp files. N.B. despite local, it must exist
-# on all nodes, so don't use mktemp
+# on all nodes with the same name, so don't use mktemp
 LOCALTMP=/tmp
 # Set these for the chown command if you want the dump to belong 
 # to user 'storm'
