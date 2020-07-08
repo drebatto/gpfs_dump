@@ -25,7 +25,7 @@ toksArray[atlasdatadisk]=atlasdatadisk
 toksArray[atlasscratchdisk]=atlasscratchdisk
 
 # Select the nodes partecipating in 'mmapplypolicy' command
-# (see mmapplypolicy man page for synyax)
+# (see mmapplypolicy man page for syntax)
 NODES=nsdnodes
 # A shared directory, must be accessible to all the nodes
 SHAREDTMP="/gpfs/storage_4/shared/tmp"
